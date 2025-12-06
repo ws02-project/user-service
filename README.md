@@ -80,7 +80,7 @@ A full-stack application demonstrating OAuth 2.0 authentication using **Asgardeo
 
 1. **Clone the repository**
    ```bash
-   cd /home/dasith-112541/Documents/gethma/user-auth-demo
+   cd https://github.com/ws02-project/user-service.git
    ```
 
 2. **Install Backend Dependencies**
