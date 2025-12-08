@@ -1,37 +1,62 @@
-name: Service CI/CD
+name: User Service CI/CD
 
-# Generic workflow template for any microservice repository
-# Place this file in: <service-name>/.github/workflows/ci.yml
-# Update the IMAGE_NAME env variable to match your service name
+# This workflow is for user-service when in its own repository
+# Place this file in: user-service/.github/workflows/ci.yml
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [main, master, develop]
     tags:
       - 'v*'
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
+  repository_dispatch:
+    types: [proto-updated] # Triggered when proto repository changes
 
 env:
   AWS_REGION: ap-southeast-1
   ECR_REGISTRY: 158670175038.dkr.ecr.ap-southeast-1.amazonaws.com
   ECR_REPOSITORY: docker
-  IMAGE_NAME: user  # Update this to match your service name (e.g., task, project, user, notification)
+  SERVICE_NAME: user-service
+  IMAGE_NAME: user
 
 permissions:
-  id-token: write   # Required for OIDC authentication
-  contents: read    # Required to checkout code
+  id-token: write # Required for OIDC authentication
+  contents: read # Required to checkout code
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     name: Build and Push Docker Image
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-    
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'repository_dispatch'
+
     steps:
+      - name: Display trigger information
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          echo "## 🔄 Triggered by Proto Repository Update" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Proto Commit:** \`${{ github.event.client_payload.proto_commit_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit Message:** ${{ github.event.client_payload.proto_commit_message }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ github.event.client_payload.changed_files }}" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Changed Files:**" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "${{ github.event.client_payload.changed_files }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "🔄 Rebuilding service due to proto file changes..."
+
       - name: Checkout code
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@v4
+
+      - name: Checkout proto repository
+        uses: actions/checkout@v4
+        with:
+          repository: ws02-project/proto
+          path: proto
+          token: ${{ secrets.PAT_TOKEN }}
+
       - name: Debug - Check AWS_ROLE_ARN variable
         run: |
           echo "AWS_ROLE_ARN value: ${{ vars.AWS_ROLE_ARN }}"
@@ -43,17 +68,17 @@ jobs:
             echo "Value: arn:aws:iam::158670175038:role/registry-github-actions-role"
             exit 1
           fi
-      
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      
+
       - name: Set image tag
         id: meta
         run: |
@@ -65,7 +90,22 @@ jobs:
           echo "tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "image=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_NAME }}-$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "image_latest=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_NAME }}-latest" >> $GITHUB_OUTPUT
-      
+
+      - name: Install dependencies for Trivy scan
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+          pnpm install --frozen-lockfile || pnpm install
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0' # Don't fail on filesystem scan, just report
+
       - name: Build Docker image
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image }}
@@ -73,7 +113,28 @@ jobs:
           echo "Building Docker image: $IMAGE_NAME"
           docker build -t $IMAGE_NAME -f Dockerfile .
           docker tag $IMAGE_NAME ${{ steps.meta.outputs.image_latest }}
-      
+          # Also tag with a simple local name for Trivy scanning
+          docker tag $IMAGE_NAME ${{ env.SERVICE_NAME }}:scan
+
+      - name: Run Trivy image scan (Table output - Show all vulnerabilities)
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true # Show results even if vulnerabilities found
+        with:
+          scan-type: 'image'
+          image-ref: '${{ env.SERVICE_NAME }}:scan'
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+          exit-code: '0' # Don't fail here, just show results
+
+      - name: Run Trivy image scan (Fail on CRITICAL/HIGH)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          image-ref: '${{ env.SERVICE_NAME }}:scan'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1' # Fail pipeline if CRITICAL or HIGH vulnerabilities found
+
       - name: Push Docker image to ECR
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image }}
@@ -82,13 +143,23 @@ jobs:
           echo "Pushing Docker image: $IMAGE_NAME"
           docker push $IMAGE_NAME
           docker push $IMAGE_LATEST
-      
+
       - name: Image details
         run: |
-          echo "✅ Successfully pushed image:"
+          echo "✅ Successfully pushed User Service image:"
           echo "  Image: ${{ steps.meta.outputs.image }}"
           echo "  Latest: ${{ steps.meta.outputs.image_latest }}"
-          echo ""
-          echo "Use in Kubernetes:"
-          echo "  image: ${{ steps.meta.outputs.image_latest }}"
 
+      - name: Trigger deployment update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          repository: ws02-project/deployments
+          event-type: update-image
+          client-payload: |-
+            {
+              "service": "user-service",
+              "image_tag": "${{ steps.meta.outputs.tag }}",
+              "image_full": "${{ steps.meta.outputs.image }}",
+              "commit_sha": "${{ github.sha }}"
+            }

@@ -1,0 +1,32 @@
+# Trivy configuration for security scanning
+# See: https://aquasecurity.github.io/trivy/latest/docs/configuration/
+
+# Vulnerability scanning settings
+vulnerability:
+  type:
+    - os
+    - library
+
+# Severity levels to report
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+
+# Exit code when vulnerabilities are found
+exit-code: 0
+
+# Ignore unfixed vulnerabilities
+ignore-unfixed: true
+
+# Skip directories
+skip-dirs:
+  - node_modules
+  - .git
+  - dist
+
+# Skip files
+skip-files:
+  - "*.md"
+  - "*.txt"
+

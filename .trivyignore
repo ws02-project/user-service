@@ -1,0 +1,15 @@
+# Trivy Ignore File for User Service
+# Add CVEs that are false positives or not applicable to this service
+# Format: CVE-YYYY-NNNNN [exp:YYYY-MM-DD] [# comment]
+
+# Go stdlib vulnerabilities from Alpine base image system binaries
+# These are Node.js services - Go stdlib is from system binaries, not application code
+# Will be resolved when Alpine base image is updated with patched Go version
+CVE-2025-47912 # Go stdlib - Parse function IPv6 validation issue
+CVE-2025-58183 # Go stdlib - archive/tar unbounded allocation
+CVE-2025-58186 # Go stdlib - HTTP headers limit issue
+CVE-2025-58187 # Go stdlib - Certificate name constraint checking
+CVE-2025-58188 # Go stdlib - DSA public key certificate validation
+CVE-2025-61724 # Go stdlib - Reader.ReadResponse string construction
+
+

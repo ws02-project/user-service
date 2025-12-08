@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  user-service-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: user-service-dev
+    ports:
+      - "3002:3002"
+      - "50053:50053"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - GRPC_PORT=50053
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=userdb
+      - DB_USER=useruser
+      - DB_PASSWORD=userpass
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672
+      - ASGARDEO_ISSUER=${ASGARDEO_ISSUER:-}
+      - ASGARDEO_JWKS_URI=${ASGARDEO_JWKS_URI:-}
+      - ASGARDEO_CLIENT_ID=${ASGARDEO_CLIENT_ID:-}
+      - ASGARDEO_AUDIENCE=${ASGARDEO_AUDIENCE:-}
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ../proto:/app/proto
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - user-service-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: user-service-postgres
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_DB=userdb
+      - POSTGRES_USER=useruser
+      - POSTGRES_PASSWORD=userpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - user-service-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U useruser -d userdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: user-service-rabbitmq
+    ports:
+      - "5674:5672"
+      - "15674:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - user-service-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # Production service (uses production Dockerfile)
+  user-service-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: user-service-prod
+    ports:
+      - "3002:3002"
+      - "50053:50053"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - GRPC_PORT=50053
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=userdb
+      - DB_USER=useruser
+      - DB_PASSWORD=userpass
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672
+      - ASGARDEO_ISSUER=${ASGARDEO_ISSUER:-}
+      - ASGARDEO_JWKS_URI=${ASGARDEO_JWKS_URI:-}
+      - ASGARDEO_CLIENT_ID=${ASGARDEO_CLIENT_ID:-}
+      - ASGARDEO_AUDIENCE=${ASGARDEO_AUDIENCE:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - user-service-network
+    profiles:
+      - production
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+
+networks:
+  user-service-network:
+    driver: bridge
+
