@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import httpStatus from 'http-status';
 import createApiError from '../utils/ApiError';
 import logger from '../utils/logger';
-import { AsgardeoService } from '../services/asgardeo.service';
+import { asgardeoService } from '../services/asgardeo.service';
 import { User, UserRole } from '../models/user.model';
 
 // Extend Express Request to include user
@@ -28,8 +28,6 @@ declare global {
     }
   }
 }
-
-const asgardeoService = new AsgardeoService();
 
 /**
  * Authenticate middleware - validates JWT token from Asgardeo

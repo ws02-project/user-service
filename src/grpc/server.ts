@@ -9,7 +9,7 @@ import {
   syncUserGrpc,
   getUsersByOrganizationGrpc,
 } from '../services/user.service';
-import { AsgardeoService } from '../services/asgardeo.service';
+import { asgardeoService } from '../services/asgardeo.service';
 
 interface UserProtoNamespace {
   UserService: {
@@ -18,7 +18,6 @@ interface UserProtoNamespace {
 }
 
 const PROTO_PATH = path.resolve(__dirname, '../../proto/user.proto');
-const asgardeoService = new AsgardeoService();
 
 /**
  * Validate token via gRPC
