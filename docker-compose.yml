@@ -57,7 +57,7 @@ services:
     restart: unless-stopped
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:4-management-alpine
     container_name: user-service-rabbitmq
     ports:
       - "5674:5672"
