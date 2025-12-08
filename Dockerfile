@@ -7,6 +7,9 @@ RUN apk add --no-cache git && \
 
 WORKDIR /app
 
+# Ensure dev dependencies are installed during build
+ENV NODE_ENV=development
+
 # Copy package files and lockfile
 COPY package.json pnpm-lock.yaml ./
 
