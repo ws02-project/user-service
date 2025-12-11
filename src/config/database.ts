@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { config } from './index';
 import { User } from '../models/user.model';
@@ -20,12 +21,16 @@ export const AppDataSource = new DataSource({
   extra: {
     min: config.db.poolMin,
     max: config.db.poolMax,
+    // Connection timeout for Istio ambient mesh compatibility
     connectionTimeoutMillis: 30000, // 30 seconds
     idleTimeoutMillis: 30000, // 30 seconds
     statement_timeout: 30000,
+    // PostgreSQL connection options
+    connect_timeout: 30, // 30 seconds connection timeout
   },
 });
 
+// Initialize database connection with retry logic for Istio ambient mesh
 export const initializeDatabase = async (retryAttempts: number = 5): Promise<void> => {
   let attempt = 0;
 
@@ -43,13 +48,19 @@ export const initializeDatabase = async (retryAttempts: number = 5): Promise<voi
         throw error;
       }
 
-      if (error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      // Check if it's a connection reset error (common with Istio)
+      if (
+        error.code === 'ECONNRESET' ||
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ETIMEDOUT'
+      ) {
         const waitTime = Math.min(1000 * attempt, 5000); // Exponential backoff, max 5s
         logger.warn(
           `Failed to connect to database (attempt ${attempt}/${retryAttempts}). Retrying in ${waitTime}ms...`,
         );
         await new Promise((resolve) => setTimeout(resolve, waitTime));
       } else {
+        // For other errors, throw immediately
         logger.error('❌ Error during database initialization:', error);
         throw error;
       }
@@ -57,10 +68,19 @@ export const initializeDatabase = async (retryAttempts: number = 5): Promise<voi
   }
 };
 
+// Close database connection
 export const closeDatabase = async (): Promise<void> => {
-  if (AppDataSource.isInitialized) {
-    await AppDataSource.destroy();
-    logger.info('Database connection closed');
+  try {
+    if (AppDataSource.isInitialized) {
+      await AppDataSource.destroy();
+      logger.info('✅ Database connection closed successfully');
+    }
+  } catch (error) {
+    logger.error('❌ Error during database closure:', error);
+    throw error;
   }
 };
+
+
+
 

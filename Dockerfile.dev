@@ -20,3 +20,10 @@ EXPOSE 3002 50053
 # Start in development mode
 CMD ["pnpm", "dev:container"]
 
+
+
+
+
+
+
+

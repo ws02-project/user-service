@@ -39,3 +39,10 @@ echo -e "HTTP API: http://localhost:3002/api/v1"
 echo -e "gRPC: localhost:50053"
 echo -e "RabbitMQ Management: http://localhost:15674"
 
+
+
+
+
+
+
+

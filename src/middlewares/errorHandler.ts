@@ -38,3 +38,10 @@ export const errorHandler = (err: ApiError, _req: Request, res: Response, _next:
   res.status(statusCode).json(response);
 };
 
+
+
+
+
+
+
+

@@ -118,3 +118,10 @@ networks:
   user-service-network:
     driver: bridge
 
+
+
+
+
+
+
+
