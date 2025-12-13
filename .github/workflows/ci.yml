@@ -163,6 +163,13 @@ jobs:
           echo "  Image: ${{ steps.meta.outputs.image }}"
           echo "  Latest: ${{ steps.meta.outputs.image_latest }}"
 
+      - name: Get commit message
+        id: commit
+        run: |
+          # Get the commit message (first line only for cleaner output)
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          echo "message=$COMMIT_MSG" >> $GITHUB_OUTPUT
+
       - name: Trigger deployment update
         uses: peter-evans/repository-dispatch@v4
         with:
@@ -174,5 +181,6 @@ jobs:
               "service": "user-service",
               "image_tag": "${{ steps.meta.outputs.tag }}",
               "image_full": "${{ steps.meta.outputs.image }}",
-              "commit_sha": "${{ github.sha }}"
+              "commit_sha": "${{ github.sha }}",
+              "commit_message": "${{ steps.commit.outputs.message }}"
             }
