@@ -15,6 +15,39 @@ jest.mock('uuid', () => ({
   stringify: jest.fn(),
 }));
 
+// Mock jose globally for all tests (jose@6 is ESM-only)
+jest.mock('jose', () => ({
+  createRemoteJWKSet: jest.fn(() => jest.fn()),
+  jwtVerify: jest.fn(() =>
+    Promise.resolve({
+      payload: {
+        sub: 'test-user-id',
+        email: 'test@example.com',
+        name: 'Test User',
+        iss: 'https://api.asgardeo.io/t/test/oauth2/token',
+        aud: 'test-client-id',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+      },
+      protectedHeader: { alg: 'RS256', typ: 'JWT' },
+    }),
+  ),
+  errors: {
+    JWTExpired: class JWTExpired extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = 'JWTExpired';
+      }
+    },
+    JWTClaimValidationFailed: class JWTClaimValidationFailed extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = 'JWTClaimValidationFailed';
+      }
+    },
+  },
+}));
+
 // Set test environment
 process.env.NODE_ENV = 'test';
 process.env.ENVIRONMENT = 'test';
