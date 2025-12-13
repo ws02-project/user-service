@@ -3,6 +3,7 @@ import * as grpc from '@grpc/grpc-js';
 import { User, UserRole, UserStatus } from '../../../models/user.model';
 import * as userService from '../../../services/user.service';
 import { AppDataSource } from '../../../config/database';
+import * as messaging from '../../../messaging';
 
 // Mock dependencies
 jest.mock('../../../config/database', () => ({
@@ -24,6 +25,8 @@ jest.mock('../../../utils/logger', () => ({
   warn: jest.fn(),
   debug: jest.fn(),
 }));
+
+const mockedMessaging = jest.mocked(messaging);
 
 describe('User Service - Extended Tests', () => {
   let mockRepository: jest.Mocked<Repository<User>>;
@@ -214,7 +217,6 @@ describe('User Service - Extended Tests', () => {
     });
 
     it('should publish role change event when role changes', async () => {
-      const messaging = require('../../../messaging');
       const user = createMockUser({ role: UserRole.USER });
       const updateData = { role: UserRole.ADMIN };
       const updatedUser = { ...user, ...updateData };
@@ -224,11 +226,10 @@ describe('User Service - Extended Tests', () => {
 
       await userService.updateUser('user-uuid-1234', updateData);
 
-      expect(messaging.publishUserRoleChanged).toHaveBeenCalled();
+      expect(mockedMessaging.publishUserRoleChanged).toHaveBeenCalled();
     });
 
     it('should publish status change event when status changes', async () => {
-      const messaging = require('../../../messaging');
       const user = createMockUser({ status: UserStatus.ACTIVE });
       const updateData = { status: UserStatus.SUSPENDED };
       const updatedUser = { ...user, ...updateData };
@@ -238,7 +239,7 @@ describe('User Service - Extended Tests', () => {
 
       await userService.updateUser('user-uuid-1234', updateData);
 
-      expect(messaging.publishUserStatusChanged).toHaveBeenCalled();
+      expect(mockedMessaging.publishUserStatusChanged).toHaveBeenCalled();
     });
   });
 
@@ -419,4 +420,3 @@ describe('User Service - Extended Tests', () => {
     });
   });
 });
-

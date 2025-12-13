@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { authenticate, optionalAuth, authorize, requireScope } from '../../../middlewares/auth';
 import { asgardeoService } from '../../../services/asgardeo.service';
