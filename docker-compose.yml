@@ -1,127 +1,92 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: user-service-postgres
+    ports:
+      - '5435:5432'
+    environment:
+      - POSTGRES_USER=useruser
+      - POSTGRES_PASSWORD=userpass
+      - POSTGRES_DB=userdb
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U useruser -d userdb']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   user-service-dev:
     build:
       context: .
       dockerfile: Dockerfile.dev
     container_name: user-service-dev
     ports:
-      - "3002:3002"
-      - "50053:50053"
+      - '3002:3002'
+      - '50053:50053'
+    volumes:
+      # Mount source code for hot reload
+      - ./src:/app/src:delegated
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./.env:/app/.env:ro
+      # Mount shared proto files
+      - ../proto:/app/proto:ro
     environment:
       - NODE_ENV=development
       - PORT=3002
       - GRPC_PORT=50053
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=userdb
-      - DB_USER=useruser
-      - DB_PASSWORD=userpass
-      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672
-      - ASGARDEO_ISSUER=${ASGARDEO_ISSUER:-}
-      - ASGARDEO_JWKS_URI=${ASGARDEO_JWKS_URI:-}
-      - ASGARDEO_CLIENT_ID=${ASGARDEO_CLIENT_ID:-}
-      - ASGARDEO_AUDIENCE=${ASGARDEO_AUDIENCE:-}
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - ../proto:/app/proto
+    command: pnpm dev:container
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - user-service-network
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: user-service-postgres
-    ports:
-      - "5435:5432"
-    environment:
-      - POSTGRES_DB=userdb
-      - POSTGRES_USER=useruser
-      - POSTGRES_PASSWORD=userpass
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - user-service-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U useruser -d userdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: user-service-rabbitmq
-    ports:
-      - "5674:5672"
-      - "15674:15672"
-    environment:
-      - RABBITMQ_DEFAULT_USER=admin
-      - RABBITMQ_DEFAULT_PASS=admin123
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - user-service-network
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3002/api/v1/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
       timeout: 10s
-      retries: 5
-    restart: unless-stopped
+      retries: 3
+      start_period: 40s
 
-  # Production service (uses production Dockerfile)
   user-service-prod:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: user-service-prod
     ports:
-      - "3002:3002"
-      - "50053:50053"
+      - '3003:3002'
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - PORT=3002
-      - GRPC_PORT=50053
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=userdb
-      - DB_USER=useruser
-      - DB_PASSWORD=userpass
-      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672
-      - ASGARDEO_ISSUER=${ASGARDEO_ISSUER:-}
-      - ASGARDEO_JWKS_URI=${ASGARDEO_JWKS_URI:-}
-      - ASGARDEO_CLIENT_ID=${ASGARDEO_CLIENT_ID:-}
-      - ASGARDEO_AUDIENCE=${ASGARDEO_AUDIENCE:-}
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - user-service-network
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3002/api/v1/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     profiles:
       - production
-    restart: unless-stopped
 
 volumes:
   postgres_data:
-  rabbitmq_data:
-
-networks:
-  user-service-network:
-    driver: bridge
-
-
-
-
-
-
-
-
