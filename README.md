@@ -1,71 +1,89 @@
 # User Service
 
-User authentication and management microservice with Asgardeo (WSO2 Identity) integration.
+User authentication and management microservice with Asgardeo (WSO2 Identity) integration and RBAC.
 
-## Features
+## Tech Stack
 
-- **Asgardeo Integration**: JWT validation using JWKS (JSON Web Key Set)
-- **User Sync**: Automatically creates/updates users from Asgardeo token claims
-- **Role-Based Access Control (RBAC)**: User, Manager, Admin roles
-- **gRPC Support**: Inter-service communication via gRPC
-- **Event-Driven**: RabbitMQ event bus for user lifecycle events
-- **PostgreSQL**: Persistent user storage with TypeORM
+| Category | Technology |
+|----------|------------|
+| Runtime | Node.js 24 LTS |
+| Language | TypeScript |
+| Framework | Express.js |
+| Database | PostgreSQL + TypeORM |
+| API | REST + gRPC |
+| Messaging | RabbitMQ |
+| Auth | Asgardeo (OIDC/OAuth2) |
+| Validation | Joi |
+| Testing | Jest + Supertest |
 
-## Architecture
+## Ports
 
+| Service | Port |
+|---------|------|
+| HTTP API | 3002 |
+| gRPC | 50053 |
+
+## Quick Start
+
+### Docker (Recommended)
+
+```bash
+docker-compose up -d
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Frontend      │────▶│   Asgardeo      │────▶│  User Service   │
-│   (React)       │     │   (OIDC/OAuth)  │     │  (Auth Gateway) │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                        │
-                        ┌───────────────────────────────┼───────────────────────────────┐
-                        │                               │                               │
-                        ▼                               ▼                               ▼
-               ┌─────────────────┐             ┌─────────────────┐             ┌─────────────────┐
-               │  Task Service   │             │ Project Service │             │ Notification    │
-               │  (gRPC Client)  │             │  (gRPC Client)  │             │    Service      │
-               └─────────────────┘             └─────────────────┘             └─────────────────┘
+
+### Local Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start dev server
+pnpm dev:local
 ```
 
 ## API Endpoints
 
-### Public (Authenticated)
-- `GET /api/v1/users/me` - Get current user profile
-- `PATCH /api/v1/users/me` - Update current user profile
+### REST API
 
-### Admin Only
-- `GET /api/v1/users` - List all users (paginated)
-- `GET /api/v1/users/:id` - Get user by ID
-- `GET /api/v1/users/subject/:subject` - Get user by Asgardeo subject
-- `GET /api/v1/users/organization/:organizationId` - Get users by organization
-- `PATCH /api/v1/users/:id` - Update user
-- `DELETE /api/v1/users/:id` - Delete user
-- `GET /api/v1/users/statistics` - Get user statistics
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/api/v1/health` | Health check | Public |
+| GET | `/api/v1/users/me` | Current user profile | Authenticated |
+| PATCH | `/api/v1/users/me` | Update profile | Authenticated |
+| GET | `/api/v1/users` | List all users | Admin |
+| GET | `/api/v1/users/:id` | Get user by ID | Admin |
+| PATCH | `/api/v1/users/:id` | Update user | Admin |
+| DELETE | `/api/v1/users/:id` | Delete user | Admin |
+| GET | `/api/v1/users/statistics` | User statistics | Admin |
 
-### Health
-- `GET /api/v1/health` - Health check
+### gRPC Methods
 
-## gRPC Services
+| Method | Description |
+|--------|-------------|
+| GetUser | Get user by ID |
+| GetUserBySubject | Get user by Asgardeo subject |
+| GetUsers | List users |
+| SyncUser | Create/update user from token |
+| ValidateToken | Validate JWT token |
+| GetUsersByOrganization | Get org users |
 
-```protobuf
-service UserService {
-  rpc GetUser(GetUserRequest) returns (GetUserResponse);
-  rpc GetUserBySubject(GetUserBySubjectRequest) returns (GetUserResponse);
-  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
-  rpc SyncUser(SyncUserRequest) returns (SyncUserResponse);
-  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
-  rpc GetUsersByOrganization(GetUsersByOrganizationRequest) returns (GetUsersResponse);
-}
-```
+## Events Published
+
+| Event | Routing Key |
+|-------|-------------|
+| User Created | `user.created` |
+| User Updated | `user.updated` |
+| Role Changed | `user.role_changed` |
+| Status Changed | `user.status_changed` |
 
 ## Environment Variables
 
 ```env
 # Server
+NODE_ENV=development
 PORT=3002
 GRPC_PORT=50053
-NODE_ENV=development
+SERVICE_NAME=user-service
 
 # Database
 DB_HOST=localhost
@@ -77,71 +95,55 @@ DB_PASSWORD=userpass
 # RabbitMQ
 RABBITMQ_URL=amqp://admin:admin123@localhost:5672
 
-# Asgardeo (WSO2 Identity)
-ASGARDEO_ISSUER=https://api.asgardeo.io/t/{org_name}/oauth2/token
-ASGARDEO_JWKS_URI=https://api.asgardeo.io/t/{org_name}/oauth2/jwks
+# Asgardeo
+ASGARDEO_ISSUER=https://api.asgardeo.io/t/{org}/oauth2/token
+ASGARDEO_JWKS_URI=https://api.asgardeo.io/t/{org}/oauth2/jwks
 ASGARDEO_CLIENT_ID=your_client_id
 ASGARDEO_AUDIENCE=your_audience
 ```
 
-## Quick Start
+## Project Structure
 
-### Development with Docker
-
-```bash
-# Start all services (PostgreSQL, RabbitMQ, User Service)
-docker-compose up --build
-
-# Or using the dev script
-./scripts/dev.sh
+```
+src/
+├── config/           # Configuration
+├── controllers/      # HTTP handlers
+├── services/         # Business logic (user, asgardeo)
+├── models/           # Database entities
+├── routes/           # API routes
+├── validations/      # Joi schemas
+├── grpc/             # gRPC server
+├── messaging/        # RabbitMQ EventBus
+├── middlewares/      # Auth, validation, error handling
+├── utils/            # Utilities (logger, ApiError, catchAsync)
+└── __tests__/        # Tests (unit + integration)
 ```
 
-### Local Development
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start with Docker |
+| `pnpm dev:local` | Start locally with hot reload |
+| `pnpm build` | Build TypeScript |
+| `pnpm start` | Start production |
+| `pnpm test` | Run tests |
+| `pnpm lint` | Lint code |
+| `pnpm migration:run` | Run migrations |
+
+## Testing
 
 ```bash
-# Install dependencies
-pnpm install
+# Run all tests
+pnpm test
 
-# Start in development mode
-pnpm dev:local
-```
+# With coverage
+pnpm test:coverage
 
-## Asgardeo Setup
-
-1. Create an application in [Asgardeo Console](https://console.asgardeo.io/)
-2. Configure OAuth2/OIDC settings
-3. Get your Client ID and configure the JWKS URI
-4. Set the environment variables
-
-## Events Published
-
-| Event | Routing Key | Description |
-|-------|-------------|-------------|
-| UserCreatedEvent | user.created | New user registered |
-| UserUpdatedEvent | user.updated | User profile updated |
-| UserRoleChangedEvent | user.role_changed | User role modified |
-| UserStatusChangedEvent | user.status_changed | User status changed |
-
-## Inter-Service Communication
-
-Other services can validate tokens and get user info via gRPC:
-
-```typescript
-// Example: Task Service validating a token
-const response = await userServiceClient.ValidateToken({ access_token: token });
-if (response.valid) {
-  console.log('User:', response.user);
-}
+# Watch mode
+pnpm test:watch
 ```
 
 ## License
 
 ISC
-
-
-
-
-
-
-
-
