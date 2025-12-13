@@ -77,16 +77,27 @@ export const getUsersByOrganization = async (
 };
 
 export const createUser = async (userData: CreateUserDTO): Promise<User> => {
+  const startTime = Date.now();
   const userRepository = getUserRepository();
 
   // Check if user with same subject or email exists
   const existingBySubject = await userRepository.findOne({ where: { subject: userData.subject } });
   if (existingBySubject) {
+    logger.warn('User creation failed - Subject exists', {
+      type: 'user_create_failed',
+      reason: 'subject_exists',
+      subject: userData.subject,
+    });
     throw createApiError(httpStatus.CONFLICT, 'User with this subject already exists');
   }
 
   const existingByEmail = await userRepository.findOne({ where: { email: userData.email } });
   if (existingByEmail) {
+    logger.warn('User creation failed - Email exists', {
+      type: 'user_create_failed',
+      reason: 'email_exists',
+      email: userData.email,
+    });
     throw createApiError(httpStatus.CONFLICT, 'User with this email already exists');
   }
 
@@ -105,6 +116,15 @@ export const createUser = async (userData: CreateUserDTO): Promise<User> => {
 
   const savedUser = await userRepository.save(user);
 
+  logger.info('User created', {
+    type: 'user_created',
+    userId: savedUser.id,
+    email: savedUser.email,
+    role: savedUser.role,
+    organizationId: savedUser.organizationId,
+    duration: Date.now() - startTime,
+  });
+
   // Publish user created event
   try {
     await publishUserCreated(
@@ -116,15 +136,25 @@ export const createUser = async (userData: CreateUserDTO): Promise<User> => {
       savedUser.displayName,
       savedUser.organizationId,
     );
-    logger.info(`📤 Published user.created event for user ${savedUser.id}`);
+    logger.info('Event published - user.created', {
+      type: 'event_published',
+      eventType: 'user.created',
+      userId: savedUser.id,
+    });
   } catch (error) {
-    logger.error('Failed to publish user created event:', error);
+    logger.error('Failed to publish user.created event', {
+      type: 'event_publish_failed',
+      eventType: 'user.created',
+      userId: savedUser.id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 
   return savedUser;
 };
 
 export const updateUser = async (id: string, updateData: UpdateUserDTO): Promise<User> => {
+  const startTime = Date.now();
   const userRepository = getUserRepository();
   const user = await getUserById(id);
 
@@ -143,23 +173,60 @@ export const updateUser = async (id: string, updateData: UpdateUserDTO): Promise
   Object.assign(user, updateData);
   const savedUser = await userRepository.save(user);
 
+  logger.info('User updated', {
+    type: 'user_updated',
+    userId: savedUser.id,
+    changedFields,
+    duration: Date.now() - startTime,
+  });
+
   // Publish role changed event if role changed
   if (updateData.role && updateData.role !== oldRole) {
+    logger.info('User role changed', {
+      type: 'user_role_changed',
+      userId: savedUser.id,
+      oldRole,
+      newRole: savedUser.role,
+    });
     try {
       await publishUserRoleChanged(savedUser.id, savedUser.subject, oldRole, savedUser.role);
-      logger.info(`📤 Published user.role_changed event for user ${savedUser.id}`);
+      logger.info('Event published - user.role_changed', {
+        type: 'event_published',
+        eventType: 'user.role_changed',
+        userId: savedUser.id,
+      });
     } catch (error) {
-      logger.error('Failed to publish user role changed event:', error);
+      logger.error('Failed to publish user.role_changed event', {
+        type: 'event_publish_failed',
+        eventType: 'user.role_changed',
+        userId: savedUser.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
 
   // Publish status changed event if status changed
   if (updateData.status && updateData.status !== oldStatus) {
+    logger.info('User status changed', {
+      type: 'user_status_changed',
+      userId: savedUser.id,
+      oldStatus,
+      newStatus: savedUser.status,
+    });
     try {
       await publishUserStatusChanged(savedUser.id, savedUser.subject, oldStatus, savedUser.status);
-      logger.info(`📤 Published user.status_changed event for user ${savedUser.id}`);
+      logger.info('Event published - user.status_changed', {
+        type: 'event_published',
+        eventType: 'user.status_changed',
+        userId: savedUser.id,
+      });
     } catch (error) {
-      logger.error('Failed to publish user status changed event:', error);
+      logger.error('Failed to publish user.status_changed event', {
+        type: 'event_publish_failed',
+        eventType: 'user.status_changed',
+        userId: savedUser.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
 
@@ -176,9 +243,19 @@ export const updateUser = async (id: string, updateData: UpdateUserDTO): Promise
         savedUser.organizationId,
         changedFields,
       );
-      logger.info(`📤 Published user.updated event for user ${savedUser.id}`);
+      logger.info('Event published - user.updated', {
+        type: 'event_published',
+        eventType: 'user.updated',
+        userId: savedUser.id,
+        changedFields,
+      });
     } catch (error) {
-      logger.error('Failed to publish user updated event:', error);
+      logger.error('Failed to publish user.updated event', {
+        type: 'event_publish_failed',
+        eventType: 'user.updated',
+        userId: savedUser.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
 
@@ -186,9 +263,18 @@ export const updateUser = async (id: string, updateData: UpdateUserDTO): Promise
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
+  const startTime = Date.now();
   const userRepository = getUserRepository();
   const user = await getUserById(id);
+  
   await userRepository.remove(user);
+
+  logger.info('User deleted', {
+    type: 'user_deleted',
+    userId: id,
+    email: user.email,
+    duration: Date.now() - startTime,
+  });
 };
 
 export const getUserStatistics = async () => {

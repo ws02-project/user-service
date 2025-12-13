@@ -4,6 +4,8 @@ declare global {
   namespace Express {
     interface Request {
       user?: User;
+      requestId?: string;
+      traceId?: string;
       tokenPayload?: {
         sub: string;
         email?: string;

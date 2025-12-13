@@ -34,10 +34,19 @@ declare global {
  * Extracts user info from token and syncs with database
  */
 export const authenticate = async (req: Request, _res: Response, next: NextFunction) => {
+  const startTime = Date.now();
+  
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      logger.warn('Authentication failed - No token', {
+        type: 'auth_failure',
+        reason: 'no_token',
+        ip: req.ip || req.socket.remoteAddress,
+        requestId: req.requestId,
+        path: req.path,
+      });
       throw createApiError(httpStatus.UNAUTHORIZED, 'No access token provided');
     }
 
@@ -47,6 +56,13 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
     const payload = await asgardeoService.validateToken(token);
 
     if (!payload || !payload.sub) {
+      logger.warn('Authentication failed - Invalid token', {
+        type: 'auth_failure',
+        reason: 'invalid_token',
+        ip: req.ip || req.socket.remoteAddress,
+        requestId: req.requestId,
+        path: req.path,
+      });
       throw createApiError(httpStatus.UNAUTHORIZED, 'Invalid token');
     }
 
@@ -91,16 +107,56 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
     });
 
     req.user = user;
+
+    // Log successful authentication
+    logger.info('Authentication successful', {
+      type: 'auth_success',
+      userId: user.id,
+      subject: user.subject,
+      email: user.email,
+      role: user.role,
+      requestId: req.requestId,
+      duration: Date.now() - startTime,
+    });
+
     next();
   } catch (error: any) {
-    logger.error('Authentication error:', error);
+    const duration = Date.now() - startTime;
+    
     if (error.statusCode) {
+      // Already logged above for specific cases
       next(error);
     } else if (error.message?.includes('expired')) {
+      logger.warn('Authentication failed - Token expired', {
+        type: 'auth_failure',
+        reason: 'token_expired',
+        ip: req.ip || req.socket.remoteAddress,
+        requestId: req.requestId,
+        path: req.path,
+        duration,
+      });
       next(createApiError(httpStatus.UNAUTHORIZED, 'Token has expired'));
     } else if (error.message?.includes('invalid')) {
+      logger.warn('Authentication failed - Invalid token', {
+        type: 'auth_failure',
+        reason: 'invalid_token',
+        ip: req.ip || req.socket.remoteAddress,
+        requestId: req.requestId,
+        path: req.path,
+        duration,
+      });
       next(createApiError(httpStatus.UNAUTHORIZED, 'Invalid token'));
     } else {
+      logger.error('Authentication failed - Unexpected error', {
+        type: 'auth_failure',
+        reason: 'unexpected_error',
+        error: error.message,
+        stack: error.stack,
+        ip: req.ip || req.socket.remoteAddress,
+        requestId: req.requestId,
+        path: req.path,
+        duration,
+      });
       next(createApiError(httpStatus.UNAUTHORIZED, 'Authentication failed'));
     }
   }
@@ -171,12 +227,34 @@ export const optionalAuth = async (req: Request, _res: Response, next: NextFunct
 export const authorize = (...allowedRoles: UserRole[]) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
+      logger.warn('Authorization failed - Not authenticated', {
+        type: 'authz_failure',
+        reason: 'not_authenticated',
+        requestId: req.requestId,
+        path: req.path,
+      });
       return next(createApiError(httpStatus.UNAUTHORIZED, 'Not authenticated'));
     }
 
     if (!allowedRoles.includes(req.user.role)) {
+      logger.warn('Authorization failed - Insufficient permissions', {
+        type: 'authz_failure',
+        reason: 'insufficient_permissions',
+        userId: req.user.id,
+        userRole: req.user.role,
+        requiredRoles: allowedRoles,
+        requestId: req.requestId,
+        path: req.path,
+      });
       return next(createApiError(httpStatus.FORBIDDEN, 'Insufficient permissions'));
     }
+
+    logger.debug('Authorization successful', {
+      type: 'authz_success',
+      userId: req.user.id,
+      userRole: req.user.role,
+      requestId: req.requestId,
+    });
 
     next();
   };
