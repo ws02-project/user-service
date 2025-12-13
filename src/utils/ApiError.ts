@@ -1,3 +1,6 @@
+/**
+ * Custom API Error class for consistent error handling across the service
+ */
 class ApiError extends Error {
   statusCode: number;
   isOperational: boolean;
@@ -6,6 +9,7 @@ class ApiError extends Error {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = isOperational;
+
     if (stack) {
       this.stack = stack;
     } else {
@@ -14,17 +18,17 @@ class ApiError extends Error {
   }
 }
 
-const createApiError = (statusCode: number, message: string): ApiError => {
-  return new ApiError(statusCode, message);
+/**
+ * Factory function to create ApiError instances
+ */
+const createApiError = (
+  statusCode: number,
+  message: string,
+  isOperational = true,
+  stack = '',
+): ApiError => {
+  return new ApiError(statusCode, message, isOperational, stack);
 };
 
 export { ApiError };
 export default createApiError;
-
-
-
-
-
-
-
-

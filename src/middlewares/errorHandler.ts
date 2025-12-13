@@ -1,25 +1,45 @@
 import { Request, Response, NextFunction } from 'express';
 import httpStatus from 'http-status';
-import { ApiError } from '../utils/ApiError';
 import { config } from '../config';
 import logger from '../utils/logger';
+import { ApiError } from '../utils/ApiError';
 
-export const errorConverter = (err: Error, _req: Request, _res: Response, next: NextFunction) => {
+/**
+ * Convert any error to ApiError format
+ */
+export const errorConverter = (
+  err: Error,
+  _req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
   let error = err;
+
   if (!(error instanceof ApiError)) {
-    const statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-    const message = error.message || httpStatus[statusCode] as string;
+    const statusCode =
+      (error as { statusCode?: number }).statusCode || httpStatus.INTERNAL_SERVER_ERROR;
+    const message = error.message || 'Internal Server Error';
     error = new ApiError(statusCode, message, false, err.stack);
   }
+
   next(error);
 };
 
-export const errorHandler = (err: ApiError, _req: Request, res: Response, _next: NextFunction) => {
+/**
+ * Handle errors and send standardized JSON response
+ */
+export const errorHandler = (
+  err: ApiError,
+  _req: Request,
+  res: Response,
+  _next: NextFunction,
+) => {
   let { statusCode, message } = err;
 
+  // In production, hide internal error details
   if (config.env === 'production' && !err.isOperational) {
     statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-    message = httpStatus[httpStatus.INTERNAL_SERVER_ERROR] as string;
+    message = 'Internal Server Error';
   }
 
   res.locals.errorMessage = err.message;
@@ -37,11 +57,3 @@ export const errorHandler = (err: ApiError, _req: Request, res: Response, _next:
 
   res.status(statusCode).json(response);
 };
-
-
-
-
-
-
-
-
