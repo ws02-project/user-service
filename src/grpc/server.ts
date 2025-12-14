@@ -47,15 +47,23 @@ const validateTokenGrpc = async (
       return;
     }
 
-    // Sync user to get full user object
+    const email = (payload.email || payload.username || payload.preferred_username || payload.upn || payload.sub) as string;
+
+    let roles: string[] = [];
+    if (payload.roles) {
+      roles = Array.isArray(payload.roles) ? payload.roles as string[] : [payload.roles as string];
+    } else if (payload.groups) {
+      roles = Array.isArray(payload.groups) ? payload.groups as string[] : [payload.groups as string];
+    }
     const user = await asgardeoService.syncUser({
       subject: payload.sub as string,
-      email: payload.email as string,
+      email: email,
       firstName: payload.given_name as string | undefined,
       lastName: payload.family_name as string | undefined,
       displayName: payload.name as string | undefined,
       avatarUrl: payload.picture as string | undefined,
       organizationId: payload.org_id as string | undefined,
+      roles: roles,
     });
 
     callback(null, {
@@ -78,7 +86,7 @@ const validateTokenGrpc = async (
       scopes: payload.scope ? (payload.scope as string).split(' ') : [],
       expires_at: payload.exp || 0,
     });
-  } catch (error: any) {
+  } catch (error) {
     logger.error('gRPC ValidateToken error:', error);
     callback(null, {
       valid: false,

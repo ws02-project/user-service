@@ -96,6 +96,16 @@ export class AsgardeoService {
       // Try to find existing user by subject (Asgardeo user ID)
       let user = await userService.getUserBySubject(data.subject).catch(() => null);
 
+      // If not found by subject, try to find by email (for users created before subject was set)
+      if (!user && data.email) {
+        user = await userService.getUserByEmail(data.email).catch(() => null);
+        // If found by email, update the subject to match current Asgardeo account
+        if (user && user.subject !== data.subject) {
+          user = await userService.updateUser(user.id, { subject: data.subject });
+          logger.info(`User subject updated from Asgardeo: ${user.id} (${user.subject} -> ${data.subject})`);
+        }
+      }
+
       // Map Asgardeo roles to local role
       const mappedRole = this.mapAsgardeoRole(data.roles);
 
@@ -121,7 +131,7 @@ export class AsgardeoService {
         if (data.organizationId && data.organizationId !== user.organizationId) {
           updates.organizationId = data.organizationId;
         }
-        // Always sync role from Asgardeo (downgrade if role removed)
+        // Sync role from Asgardeo if it changed (e.g., user promoted to admin)
         if (mappedRole !== user.role) {
           updates.role = mappedRole;
           logger.info(`User role synced from Asgardeo: ${user.role} -> ${mappedRole}`);

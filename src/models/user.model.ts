@@ -88,6 +88,8 @@ export interface CreateUserDTO {
 }
 
 export interface UpdateUserDTO {
+  subject?: string;
+  email?: string;
   firstName?: string;
   lastName?: string;
   displayName?: string;
