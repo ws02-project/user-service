@@ -49,3 +49,5 @@ echo -e "RabbitMQ Management: http://localhost:15674"
 
 
 
+
+
