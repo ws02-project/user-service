@@ -29,7 +29,7 @@ export const updateMe: RequestHandler = catchAsync(async (req: Request, res: Res
   // Users can only update certain fields for themselves
   const allowedFields = ['firstName', 'lastName', 'displayName', 'avatarUrl'];
   const updates: Record<string, unknown> = {};
-  
+
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) {
       updates[field] = req.body[field];
@@ -49,9 +49,9 @@ export const updateMe: RequestHandler = catchAsync(async (req: Request, res: Res
 export const getAllUsers: RequestHandler = catchAsync(async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 100);
-  
+
   const { users, total } = await userService.getAllUsers(page, pageSize);
-  
+
   res.status(httpStatus.OK).json({
     success: true,
     data: users,
@@ -92,13 +92,13 @@ export const getUserBySubject: RequestHandler = catchAsync(async (req: Request, 
 export const getUsersByOrganization: RequestHandler = catchAsync(async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 100);
-  
+
   const { users, total } = await userService.getUsersByOrganization(
     req.params.organizationId,
     page,
     pageSize,
   );
-  
+
   res.status(httpStatus.OK).json({
     success: true,
     data: users,
@@ -138,6 +138,27 @@ export const getUserStatistics: RequestHandler = catchAsync(async (_req: Request
   res.status(httpStatus.OK).json({
     success: true,
     data: stats,
+  });
+});
+
+/**
+ * Get users list (for dropdowns, accessible to all authenticated users)
+ * Returns only basic info: id, email, displayName, avatarUrl
+ */
+export const getUsersList: RequestHandler = catchAsync(async (_req: Request, res: Response) => {
+  const { users } = await userService.getAllUsers(1, 1000); // Get up to 1000 users
+
+  // Return only safe fields for dropdowns
+  const usersList = users.map(user => ({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+  }));
+
+  res.status(httpStatus.OK).json({
+    success: true,
+    data: usersList,
   });
 });
 

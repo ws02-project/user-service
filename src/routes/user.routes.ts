@@ -11,6 +11,9 @@ const router: Router = Router();
 router.get('/me', authenticate, userController.getMe);
 router.patch('/me', authenticate, validate(userValidation.updateMeSchema), userController.updateMe);
 
+// Users list for dropdowns (all authenticated users)
+router.get('/list', authenticate, userController.getUsersList);
+
 // Admin routes
 router.get(
   '/',

@@ -17,9 +17,14 @@ const startServer = async () => {
     await initializeDatabase();
     logger.info('✅ Database initialized successfully');
 
-    // Initialize EventBus messaging system
-    await initializeMessaging();
-    logger.info('✅ EventBus messaging initialized successfully');
+    // Initialize EventBus messaging system (optional)
+    try {
+      await initializeMessaging();
+      logger.info('✅ EventBus messaging initialized successfully');
+    } catch (messagingError) {
+      logger.warn('⚠️  RabbitMQ connection failed - continuing without messaging');
+      logger.warn('Messaging error:', messagingError);
+    }
 
     // Start gRPC server
     const grpcPort = config.grpc?.port || 50053;
@@ -33,7 +38,6 @@ const startServer = async () => {
       logger.info(`🔗 API: http://localhost:${config.port}/api/${config.apiVersion}`);
       logger.info(`🗄️  Database: ${config.db.host}:${config.db.port}/${config.db.name}`);
       logger.info(`🔐 Asgardeo: ${config.asgardeo.issuer}`);
-      logger.info(`🐰 RabbitMQ: Connected`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);
